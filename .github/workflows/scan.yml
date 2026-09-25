@@ -2,8 +2,8 @@ name: Scan Enigma2 Plugins
 
 on:
   schedule:
-    - cron: '0 4 * * *'        # Her gün 04:00 UTC
-  workflow_dispatch:            # Manuel tetikleme (buton)
+    - cron: '0 4 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,18 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Run scanner
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/scan.py
-
-      - name: Commit catalog if changed
+      - name: Commit catalog
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -33,7 +29,5 @@ jobs:
             if ! git diff --staged --quiet; then
               git commit -m "Update catalog $(date +%Y-%m-%d)"
               git push
-            else
-              echo "Değişiklik yok, commit atlanıyor."
             fi
           fi
