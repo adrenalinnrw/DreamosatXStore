@@ -5,29 +5,58 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
+# Aynı anda 2 tarama olmasın
+concurrency:
+  group: scan-catalog
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
 jobs:
   scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Run scanner
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/scan.py
+        run: |
+          echo "=== Başlangıç: $(date -u) ==="
+          python scripts/scan.py
+          echo "=== Çıktı ==="
+          ls -lh catalog.json
+          python -c "import json; d=json.load(open('catalog.json')); print('Toplam:', len(d['plugins']))"
+
       - name: Commit catalog
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ -f catalog.json ]; then
-            git add catalog.json
-            if ! git diff --staged --quiet; then
-              git commit -m "Update catalog $(date +%Y-%m-%d)"
-              git push
-            fi
+          if [ ! -f catalog.json ]; then
+            echo "❌ catalog.json bulunamadı"
+            exit 1
           fi
+          git add catalog.json
+          if git diff --staged --quiet; then
+            echo "ℹ️  Değişiklik yok, commit atlanıyor"
+            exit 0
+          fi
+          git commit -m "Update catalog $(date -u +%Y-%m-%d)"
+          # Push reddedilirse pull+rebase dene
+          for i in 1 2 3; do
+            if git push; then
+              echo "✅ Push başarılı"
+              exit 0
+            fi
+            echo "⚠️  Push denemesi $i başarısız, pull+rebase deniyor..."
+            git pull --rebase origin main || true
+            sleep 5
+          done
+          echo "❌ Push 3 denemede başarısız"
+          exit 1
