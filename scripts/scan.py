@@ -14,7 +14,7 @@ except ImportError:
     import urlparse
 
 # ============================================================
-# KAYNAKLAR — Yeni repo eklemek için buraya satır ekle
+# KAYNAKLAR
 # ============================================================
 SOURCES = [
     # (owner, repo, branch)
@@ -40,25 +40,16 @@ ARCH_PATTERNS = {
 # ============================================================
 # KATEGORİ KALIPLARI
 # ============================================================
-# ÖNEMLİ: Özel kategoriler önce gelir
 CAT_PATTERNS = {
-    # Kanalliste + Picons (senin yeni başlık)
-    "channels_picons": r"picon|setting|channels?_backup|lamedb|satellites|bouquet|morph883|chveneburi|mnasr|tarekalashry|motor|transparent",
-
-    # Plugin kategorileri
     "plugin_iptv":     r"iptv|m3u|stalker|xtream|xstreamity|e2iplayer|beengo|suptv",
     "plugin_epg":      r"epg|crossepg|xmltv|rytec|jediepg",
-    "plugin_weather":  r"weather|foreca|msn|yahoo|weatherplugin",
-    "plugin_utility":  r"utility|manager|cleaner|tool|filecommander|filecommander",
+    "plugin_weather":  r"weather|foreca|msn|yahoo",
+    "plugin_utility":  r"utility|manager|cleaner|tool|filecommander",
     "plugin_backup":   r"backup|flashbackup|dflash|dbackup|backupsuite",
     "plugin_softcam":  r"softcam|oscam|cccam|ncam|gcam|mgcamd|supcam|camnova|novacam",
     "plugin_media":    r"media|player|youtube|vavoo|plex|kodi|mediastream",
-    "plugin_ppanel":   r"panel|menu|luxsat|satvenus|tspanel|ajpanel|linuxsat",
+    "plugin_ppanel":   r"panel|luxsat|satvenus|tspanel|ajpanel|linuxsat",
     "plugin_settings": r"autobouquet|settingsmaker|satelliteeditor",
-
-    # Diğer
-    "skin":            r"skin",
-    "dependencies":    r"python-|libc|libssl|libcrypto|gstreamer|libusb|libdvbcsa",
 }
 
 # ============================================================
@@ -77,6 +68,7 @@ def gh_tree(owner, repo, branch):
         print("[!] %s/%s: %s" % (owner, repo, e))
         return []
 
+
 def detect_arch(name, folder=""):
     t = (name + " " + folder).lower()
     if "arm+mips" in t or "arm-mips" in t:
@@ -86,27 +78,81 @@ def detect_arch(name, folder=""):
             return arch
     return "all"
 
-def detect_category(name, folder=""):
-    """Plugin mi veri mi önce ayır."""
-    t = (name + " " + folder).lower()
 
-    # 1. Plugin/skin ise plugin kategorilerine bak
-    if "enigma2-plugin" in t or "enigma2-skin" in t or t.endswith(".deb"):
-        # Picons plugin'i ise özel durum
-        if "piconmanager" in t or "piconcleaner" in t or "piconsupdater" in t:
+def detect_category(name, folder=""):
+    """Kategori tespiti — ÖNCELİK SIRASI ÖNEMLİ.
+
+    Sıra:
+      1) Skin       → "skin"        (en yüksek öncelik, çünkü 'transparent', 'motor', 'menu' gibi kelimeler başka yerlerde de geçer)
+      2) Plugin     → plugin_*      (enigma2-plugin- içerenler)
+      3) Kanalliste → channels_picons (kanal backup, settings, picons veri dosyaları)
+      4) Diğer      → other
+    """
+    t = (name + " " + folder).lower()
+    full = t  # name + folder birleşik
+
+    # ----------------------------------------------------------------
+    # 1) SKIN — en yüksek öncelik
+    # ----------------------------------------------------------------
+    if ("enigma2-plugin-skins-" in full
+            or "enigma2-skin-" in full
+            or "-skin-" in full
+            or full.startswith("skin-")
+            or "skincomponent" in full
+            or "picon-pack" in full):          # Picon paketleri skin değil
+        if "picon" not in full:                # Picon'lar skin değil
+            return "skin"
+
+    # ----------------------------------------------------------------
+    # 2) PLUGIN — enigma2-plugin içerenler
+    # ----------------------------------------------------------------
+    if "enigma2-plugin" in full or "enigma2-systemplugins" in full:
+        # Picon manager/cleaner/updater → utility
+        if "piconmanager" in full or "piconcleaner" in full or "piconsupdater" in full:
             return "plugin_utility"
+        # Backupsuite plugin'i → backup
+        if "backupsuite" in full:
+            return "plugin_backup"
         for cat, pat in CAT_PATTERNS.items():
-            if cat == "channels_picons":
-                continue  # Plugin için bu kategoriye düşmesin
-            if re.search(pat, t):
+            if re.search(pat, full):
                 return cat
+        return "plugin"  # fallback: generic plugin
+
+    # ----------------------------------------------------------------
+    # 3) KANAL LİSTESİ & PICON — veri dosyaları
+    #    Sadece özel isim kalıpları
+    # ----------------------------------------------------------------
+    # Picon veri dosyaları
+    if re.search(r"^picon[\s_\-]|picon[\s_\-]\d|picon_?all|picon_?\d+e|picon-pack|_picon\.zip|picons?_?\d", full):
+        return "channels_picons"
+    if re.search(r"picon.*\.(zip|tar\.gz)$", full):
+        return "channels_picons"
+
+    # Kanal listesi/settings veri dosyaları
+    if re.search(r"channels?_backup|lamedb|satellites\.xml|morph883|chveneburi|mnasr|tarekalashry", full):
+        return "channels_picons"
+    if re.search(r"settings?[_\-\s].*\.(ipk|tar\.gz|zip)$", full):
+        return "channels_picons"
+
+    # .deb dosyaları (DreamOS paketleri, çoğunlukla plugin)
+    if full.endswith(".deb"):
+        for cat, pat in CAT_PATTERNS.items():
+            if re.search(pat, full):
+                return cat
+        return "plugin"
+
+    # ----------------------------------------------------------------
+    # 4) Diğer veri kategorileri
+    # ----------------------------------------------------------------
+    if "bootlogo" in full or "splash" in full:
         return "other"
 
-    # 2. Değilse veri (kanalliste/picon/settings)
     for cat, pat in CAT_PATTERNS.items():
-        if re.search(pat, t):
+        if re.search(pat, full):
             return cat
+
     return "other"
+
 
 def version_key(name):
     m = re.search(r'[_-]v?(\d+(?:\.\d+)*)', name)
@@ -117,8 +163,10 @@ def version_key(name):
     except Exception:
         return (0,)
 
+
 def slug(s):
     return re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')[:80]
+
 
 def clean_name(pkg):
     clean = pkg
@@ -129,6 +177,7 @@ def clean_name(pkg):
             clean = clean[len(pre):]
             break
     return clean.replace("_", " ").replace("-", " ").strip()[:70]
+
 
 # ============================================================
 # Tarama
@@ -189,6 +238,7 @@ def scan():
 
     return final
 
+
 def save(plugins, path=OUTPUT_FILE):
     import time
     catalog = {
@@ -200,6 +250,7 @@ def save(plugins, path=OUTPUT_FILE):
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(catalog, f, indent=2, ensure_ascii=False)
+
 
 # ============================================================
 # Main
