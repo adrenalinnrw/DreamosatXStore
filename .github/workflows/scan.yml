@@ -4,8 +4,12 @@ on:
   schedule:
     - cron: '0 4 * * *'
   workflow_dispatch:
+  push:
+    paths:
+      - 'OE2.0/**'
+      - 'OE2.5/**'
+      - 'scripts/scan.py'
 
-# Aynı anda 2 tarama olmasın
 concurrency:
   group: scan-catalog
   cancel-in-progress: false
@@ -29,26 +33,58 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "=== Başlangıç: $(date -u) ==="
+          cp -f catalog.json catalog.prev.json 2>/dev/null || true
           python scripts/scan.py
-          echo "=== Çıktı ==="
-          ls -lh catalog.json
-          python -c "import json; d=json.load(open('catalog.json')); print('Toplam:', len(d['plugins']))"
+
+      - name: Validate catalog
+        run: |
+          python - <<'PY'
+          import json, os, sys, collections
+          d = json.load(open("catalog.json"))
+          p = d.get("plugins", [])
+          print("Toplam:", len(p))
+          print("Kategoriler:", collections.Counter(x["category"] for x in p).most_common())
+
+          # plugin'in tanıdığı kategoriler - başka isim çıkarsa hata
+          allowed = {"plugin", "skin", "tools", "media", "iptv", "softcam", "backup", "picon", "other"}
+          bad = sorted({x["category"] for x in p} - allowed)
+          if bad:
+              sys.exit("HATA: bilinmeyen kategori(ler): %s" % bad)
+
+          # zorunlu alanlar
+          need = ("id", "name", "category", "url", "package", "arch")
+          for x in p[:]:
+              missing = [k for k in need if not x.get(k)]
+              if missing:
+                  sys.exit("HATA: %s -> eksik alan %s" % (x.get("id"), missing))
+
+          # id tekrarı olmamalı
+          ids = collections.Counter(x["id"] for x in p)
+          dup = [k for k, v in ids.items() if v > 1]
+          if dup:
+              sys.exit("HATA: tekrar eden id: %s" % dup[:5])
+
+          # ani daralma = bozuk tarama (API limiti vb.) -> eski katalogu koru
+          if os.path.exists("catalog.prev.json"):
+              old = len(json.load(open("catalog.prev.json")).get("plugins", []))
+              if old and len(p) < old * 0.5:
+                  sys.exit("HATA: paket sayısı %d -> %d düştü, commit edilmiyor" % (old, len(p)))
+          if len(p) < 50:
+              sys.exit("HATA: katalog çok küçük (%d)" % len(p))
+          print("✅ Katalog geçerli")
+          PY
 
       - name: Commit catalog
         run: |
+          rm -f catalog.prev.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ ! -f catalog.json ]; then
-            echo "❌ catalog.json bulunamadı"
-            exit 1
-          fi
           git add catalog.json
           if git diff --staged --quiet; then
             echo "ℹ️  Değişiklik yok, commit atlanıyor"
             exit 0
           fi
           git commit -m "Update catalog $(date -u +%Y-%m-%d)"
-          # Push reddedilirse pull+rebase dene
           for i in 1 2 3; do
             if git push; then
               echo "✅ Push başarılı"
