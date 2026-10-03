@@ -23,7 +23,6 @@ except ImportError:                                    # py2
 SOURCES = [
     # (owner, repo, branch)
     ("adrenalinnrw",  "DreamosatXStore",      "main"),
-    ("Belfagor2005",  "LinuxsatPanel",        "main"),
     ("audi06",        "dreamosatdownloader",  "master"),
     ("wwwgoper77-wq", "MohamedStore",         "main"),
 ]
