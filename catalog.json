@@ -1245,26 +1245,6 @@
    "added": "2026-10-08"
   },
   {
-   "id": "enigma2-plugin-extensions-dreamosatxsignal-2-0",
-   "name": "Dreamosatxsignal",
-   "category": "iptv",
-   "arch": "all",
-   "version": "2.0",
-   "url": "https://raw.githubusercontent.com/adrenalinnrw/DreamosatXStore/main/OE2.0/plugin_iptv/enigma2-plugin-extensions-dreamosatxsignal_2.0_all%282%29.ipk",
-   "package": "enigma2-plugin-extensions-dreamosatxsignal",
-   "file": "enigma2-plugin-extensions-dreamosatxsignal_2.0_all(2).ipk",
-   "source": "ipk",
-   "icon": "stream.png",
-   "github": "adrenalinnrw/DreamosatXStore",
-   "github_asset": "enigma2-plugin-extensions-dreamosatxsignal_2.0_all(2).ipk",
-   "size": 200602,
-   "desc": "IPTV / stream eklentisi",
-   "desc_en": "IPTV / streaming plugin",
-   "desc_de": "IPTV-/Streaming-Plugin",
-   "desc_fr": "Plugin IPTV / streaming",
-   "added": "2026-10-08"
-  },
-  {
    "id": "enigma2-plugin-extensions-dreamosatxsoftcam-1-0-0",
    "name": "Dreamosatxsoftcam",
    "category": "iptv",
